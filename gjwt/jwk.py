@@ -39,7 +39,10 @@ from cryptography.hazmat.primitives.asymmetric.rsa import (
     RSAPublicKey,
     RSAPublicNumbers,
 )
-import cryptography.hazmat.primitives.serialization as serialization_module
+from cryptography.hazmat.primitives.serialization import (
+    load_pem_private_key,
+    load_pem_public_key,
+)
 
 from .exceptions import (
     MalformedJWKError,

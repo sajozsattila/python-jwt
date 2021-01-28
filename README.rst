@@ -100,9 +100,6 @@ Supported Algorithms
 
 - Asymmetric
 
-  - PS256
-  - PS384
-  - PS512
   - RS256
   - RS384
   - RS512
