@@ -79,7 +79,7 @@ You can install python-jwt with pip.
 
 .. code-block:: shell
 
-   $ pip install jwt
+   $ pip install gjwt
 
 
 Implementation Details
