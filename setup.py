@@ -24,7 +24,7 @@ from setuptools import (
 
 here = os.path.dirname(__file__)
 requires = [
-    'cryptography > 2.9.2, <= 3.4',
+    'cryptography > 2.9.2, <= 3.2.1',
 ]
 
 
@@ -32,7 +32,7 @@ with open(os.path.join(here, './README.rst'), 'r') as fh:
     long_description = fh.read()
 
 setup(
-    name='gjwt',
+    name='jwt',
     version='1.1.0',
 
     description='JSON Web Token library for Python 3.',
@@ -61,3 +61,4 @@ setup(
     install_requires=requires,
     python_requires='>= 3.6',
 )
+
