@@ -19,7 +19,7 @@ Examples
    import json
    from datetime import datetime, timedelta, timezone
 
-   from jwt import (
+   from gjwt import (
        JWT,
        jwk_from_dict,
        jwk_from_pem,
