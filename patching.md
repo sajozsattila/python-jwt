@@ -1,8 +1,21 @@
 # example
 ``` 
-git apply --check  0016-pep8-mypy-compliance.patch # test patch is working
+git clone https://github.com/GehirnInc/python-jwt.git # get the orignial code
+mv python-jwt python-original_jwt
+git clone git@github.com:sajozsattila/python-jwt.git # get the gjwt version
+mv python-jwt python-gjwt
+cd python-gjwt
+git log --pretty=oneline -30 # get the commits too see where we are
 
-git am 0016-pep8-mypy-compliance.patch # apply patch
+cd ../python-original_jwt
+git log --pretty=oneline -30 # get the original commits
+git format-patch -16 HEAD # get the last 16 commit as patch
+cp *.patch ../python-gjwt
+cat some.patch | sed "s/jwt/gjwt/g" > some1.patch # replace jwt -> gjwt
+mv some1.patch some.patch 
+git apply --check  some.patch # test patch is working
+
+git am some.patch # apply patch
 ```
 
 # Bugfix
