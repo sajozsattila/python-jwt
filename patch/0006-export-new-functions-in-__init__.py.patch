@@ -1,0 +1,37 @@
+From bd31e5668b67426354fac21b247a66d5cf755b1f Mon Sep 17 00:00:00 2001
+From: Castix <vincenzo.castiglia@axant.it>
+Date: Tue, 15 Dec 2020 16:06:18 +0100
+Subject: [PATCH 06/16] export new functions in __init__.py
+
+---
+ gjwt/__init__.py | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/gjwt/__init__.py b/gjwt/__init__.py
+index 8d80741..c10043c 100644
+--- a/gjwt/__init__.py
++++ b/gjwt/__init__.py
+@@ -18,7 +18,9 @@ from .jwa import std_hash_by_alg
+ from .jwk import (
+     AbstractJWKBase,
+     jwk_from_dict,
++    jwk_from_bytes,
+     jwk_from_pem,
++    jwk_from_der,
+     supported_key_types,
+ )
+ from .jwkset import JWKSet
+@@ -34,8 +36,10 @@ __all__ = [
+     'std_hash_by_alg',
+     # .jwk
+     'AbstractJWKBase',
++    'jwk_from_bytes',
+     'jwk_from_dict',
+     'jwk_from_pem',
++    'jwk_from_der',
+     'supported_key_types',
+     # .jwkset
+     'JWKSet',
+-- 
+2.25.1
+

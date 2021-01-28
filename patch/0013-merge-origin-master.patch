@@ -1,0 +1,230 @@
+From c563c0197c86c213f7a9129f139ebde359e23f62 Mon Sep 17 00:00:00 2001
+From: Castix <vincenzo.castiglia@axant.it>
+Date: Mon, 18 Jan 2021 12:32:00 +0100
+Subject: [PATCH 13/16] merge origin master
+
+---
+ README.rst            |  3 ++
+ gjwt/jwa.py            | 77 +++++++++++++++++++++++++++++++++++++++----
+ gjwt/jwk.py            | 14 +++++---
+ gjwt/tests/test_jwt.py | 14 ++++++++
+ setup.py              |  3 +-
+ 5 files changed, 99 insertions(+), 12 deletions(-)
+
+diff --git a/README.rst b/README.rst
+index 318c981..c94ae0d 100644
+--- a/README.rst
++++ b/README.rst
+@@ -100,6 +100,9 @@ Supported Algorithms
+ 
+ - Asymmetric
+ 
++  - PS256
++  - PS384
++  - PS512
+   - RS256
+   - RS384
+   - RS512
+diff --git a/gjwt/jwa.py b/gjwt/jwa.py
+index 7e9944b..daf1663 100644
+--- a/gjwt/jwa.py
++++ b/gjwt/jwa.py
+@@ -21,6 +21,7 @@ from typing import (
+     Optional,
+ )
+ 
++from cryptography.hazmat.primitives.asymmetric import padding
+ from cryptography.hazmat.primitives.hashes import (
+     SHA256,
+     SHA384,
+@@ -97,8 +98,11 @@ class RSAAlgorithm(AbstractSigningAlgorithm):
+     def __init__(self, hash_fun: object) -> None:
+         self.hash_fun = hash_fun
+ 
+-    def _check_key(self, key: Optional[AbstractJWKBase], must_sign_key=False) \
+-            -> AbstractJWKBase:
++    def _check_key(
++        self,
++        key: Optional[AbstractJWKBase],
++        must_sign_key: bool = False,
++    ) -> AbstractJWKBase:
+         if not key or key.get_kty() != 'RSA':
+             raise InvalidKeyTypeError('RSA key is required')
+         if must_sign_key and not key.is_sign_key():
+@@ -108,12 +112,18 @@ class RSAAlgorithm(AbstractSigningAlgorithm):
+ 
+     def sign(self, message: bytes, key: Optional[AbstractJWKBase]) -> bytes:
+         key = self._check_key(key, must_sign_key=True)
+-        return key.sign(message, hash_fun=self.hash_fun)
+-
+-    def verify(self, message: bytes, key: Optional[AbstractJWKBase],
+-               signature: bytes) -> bool:
++        return key.sign(message, hash_fun=self.hash_fun,
++                        padding=padding.PKCS1v15())
++
++    def verify(
++        self,
++        message: bytes,
++        key: Optional[AbstractJWKBase],
++        signature: bytes,
++    ) -> bool:
+         key = self._check_key(key)
+-        return key.verify(message, signature, hash_fun=self.hash_fun)
++        return key.verify(message, signature, hash_fun=self.hash_fun,
++                          padding=padding.PKCS1v15())
+ 
+ 
+ RS256 = RSAAlgorithm(SHA256)
+@@ -121,6 +131,56 @@ RS384 = RSAAlgorithm(SHA384)
+ RS512 = RSAAlgorithm(SHA512)
+ 
+ 
++class PSSRSAAlgorithm(AbstractSigningAlgorithm):
++    def __init__(self, hash_fun: object) -> None:
++        self.hash_fun = hash_fun
++
++    def _check_key(
++        self,
++        key: Optional[AbstractJWKBase],
++        must_sign_key: bool = False,
++    ) -> AbstractJWKBase:
++        if not key or key.get_kty() != 'RSA':
++            raise InvalidKeyTypeError('RSA key is required')
++        if must_sign_key and not key.is_sign_key():
++            raise InvalidKeyTypeError(
++                'a RSA private key is required, but passed is RSA public key')
++        return key
++
++    def sign(self, message: bytes, key: Optional[AbstractJWKBase]) -> bytes:
++        key = self._check_key(key, must_sign_key=True)
++        return key.sign(
++            message,
++            hash_fun=self.hash_fun,
++            padding=padding.PSS(
++                mgf=padding.MGF1(self.hash_fun()),
++                salt_length=self.hash_fun().digest_size,
++            ),
++        )
++
++    def verify(
++        self,
++        message: bytes,
++        key: Optional[AbstractJWKBase],
++        signature: bytes
++    ) -> bool:
++        key = self._check_key(key)
++        return key.verify(
++            message,
++            signature,
++            hash_fun=self.hash_fun,
++            padding=padding.PSS(
++                mgf=padding.MGF1(self.hash_fun()),
++                salt_length=self.hash_fun().digest_size,
++            ),
++        )
++
++
++PS256 = PSSRSAAlgorithm(SHA256)
++PS384 = PSSRSAAlgorithm(SHA384)
++PS512 = PSSRSAAlgorithm(SHA512)
++
++
+ def supported_signing_algorithms():
+     # NOTE(yosida95): exclude vulnerable 'none' algorithm by default.
+     return {
+@@ -130,4 +190,7 @@ def supported_signing_algorithms():
+         'RS256': RS256,
+         'RS384': RS384,
+         'RS512': RS512,
++        'PS256': PS256,
++        'PS384': PS384,
++        'PS512': PS512,
+     }
+diff --git a/gjwt/jwk.py b/gjwt/jwk.py
+index 610a04b..30873f7 100644
+--- a/gjwt/jwk.py
++++ b/gjwt/jwk.py
+@@ -41,6 +41,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import (
+     RSAPublicNumbers,
+ )
+ import cryptography.hazmat.primitives.serialization as serialization_module
++from cryptography.hazmat.primitives.hashes import HashAlgorithm
+ 
+ from .exceptions import (
+     MalformedJWKError,
+@@ -145,27 +146,32 @@ class RSAJWK(AbstractJWKBase):
+         self.keyobj = keyobj
+ 
+         optnames = {'use', 'key_ops', 'alg', 'kid',
+-                    'x5u', 'x5c', 'x5t', 'x5t#s256'}
++                    'x5u', 'x5c', 'x5t', 'x5t#s256', }
+         self.options = {k: v for k, v in options.items() if k in optnames}
+ 
+     def is_sign_key(self) -> bool:
+         return isinstance(self.keyobj, RSAPrivateKey)
+ 
+-    def _get_hash_fun(self, options) -> Callable:
++    def _get_hash_fun(self, options) -> Callable[[], HashAlgorithm]:
+         return options['hash_fun']
+ 
++    def _get_padding(self, options) -> padding.AsymmetricPadding:
++        return options['padding']
++
+     def sign(self, message: bytes, **options) -> bytes:
+         hash_fun = self._get_hash_fun(options)
+-        return self.keyobj.sign(message, padding.PKCS1v15(), hash_fun())
++        _padding = self._get_padding(options)
++        return self.keyobj.sign(message, _padding, hash_fun())
+ 
+     def verify(self, message: bytes, signature: bytes, **options) -> bool:
+         hash_fun = self._get_hash_fun(options)
++        _padding = self._get_padding(options)
+         if self.is_sign_key():
+             pubkey = self.keyobj.public_key()
+         else:
+             pubkey = self.keyobj
+         try:
+-            pubkey.verify(signature, message, padding.PKCS1v15(), hash_fun())
++            pubkey.verify(signature, message, _padding, hash_fun())
+             return True
+         except InvalidSignature:
+             return False
+diff --git a/gjwt/tests/test_jwt.py b/gjwt/tests/test_jwt.py
+index 6c018db..9c726bc 100644
+--- a/gjwt/tests/test_jwt.py
++++ b/gjwt/tests/test_jwt.py
+@@ -83,3 +83,17 @@ class JWTTest(TestCase):
+         }
+         compact_jws = self.inst.encode(message, self.key)
+         self.assertEqual(self.inst.decode(compact_jws, self.key), message)
++
++    def test_encoded_with_rs(self):
++        message = {'hello': 'there'}
++        key = jwk_from_dict(
++            json.loads(load_testdata('rsa_privkey.json', 'r')))
++        comp = self.inst.encode(message, key, alg='RS256')
++        assert self.inst.decode(comp, key) == message
++
++    def test_encoded_with_pss(self):
++        message = {'hello': 'there'}
++        key = jwk_from_dict(
++            json.loads(load_testdata('rsa_privkey.json', 'r')))
++        comp = self.inst.encode(message, key, alg='PS256')
++        assert self.inst.decode(comp, key) == message
+diff --git a/setup.py b/setup.py
+index 452f67e..23d3184 100644
+--- a/setup.py
++++ b/setup.py
+@@ -24,7 +24,8 @@ from setuptools import (
+ 
+ here = os.path.dirname(__file__)
+ requires = [
+-    'cryptography > 3.1, <= 3.3.1',
++    'cryptography >= 3.1, <= 3.3.1',
++    'cryptography > 2.9.2, <= 3.4',
+ ]
+ 
+ 
+-- 
+2.25.1
+

@@ -1,0 +1,25 @@
+From a8b17c246f3824b121f7c960ee13b31f740c320f Mon Sep 17 00:00:00 2001
+From: Javier Collado <javier.collado@tutanota.com>
+Date: Tue, 5 Jan 2021 18:52:56 +0100
+Subject: [PATCH 09/16] Upgrade cryptography dependency
+
+---
+ setup.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/setup.py b/setup.py
+index 391965c..952e229 100644
+--- a/setup.py
++++ b/setup.py
+@@ -24,7 +24,7 @@ from setuptools import (
+ 
+ here = os.path.dirname(__file__)
+ requires = [
+-    'cryptography > 2.9.2, <= 3.2.1',
++    'cryptography > 2.9.2, <= 3.4',
+ ]
+ 
+ 
+-- 
+2.25.1
+

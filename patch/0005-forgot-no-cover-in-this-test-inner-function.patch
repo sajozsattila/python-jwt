@@ -1,0 +1,25 @@
+From 55418d70abff0aed67651fbf1dbdde50dc74821f Mon Sep 17 00:00:00 2001
+From: Castix <vincenzo.castiglia@axant.it>
+Date: Tue, 15 Dec 2020 13:37:39 +0100
+Subject: [PATCH 05/16] forgot no cover in this test inner function
+
+---
+ gjwt/tests/test_jwk.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/gjwt/tests/test_jwk.py b/gjwt/tests/test_jwk.py
+index c28a610..a638155 100644
+--- a/gjwt/tests/test_jwk.py
++++ b/gjwt/tests/test_jwk.py
+@@ -73,7 +73,7 @@ def test_jwk_from_dict_unsupported_kty():
+ def test_jwk_from_bytes_argument_conversion_confusing_name():
+     with raises(Exception) as ex:
+         @jwk_from_bytes_argument_conversion
+-        def confusing():  # pylint: disable=unused-variable
++        def confusing():  # pylint: disable=unused-variable  # pragma: no cover
+             pass
+     assert ("the wrapped function must have either public"
+             " or private in it's name" in str(ex))
+-- 
+2.25.1
+

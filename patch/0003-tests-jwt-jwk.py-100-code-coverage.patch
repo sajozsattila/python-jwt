@@ -1,0 +1,245 @@
+From 5220a91383a709b82b2884017580a90b1255bad8 Mon Sep 17 00:00:00 2001
+From: Castix <vincenzo.castiglia@axant.it>
+Date: Tue, 15 Dec 2020 12:31:15 +0100
+Subject: [PATCH 03/16] tests: gjwt/jwk.py 100% code coverage
+
+---
+ gjwt/jwk.py                         |  19 +++----
+ gjwt/tests/test_jwa.py              |   3 +-
+ gjwt/tests/test_jwk.py              |  83 +++++++++++++++++++++++++++++
+ gjwt/tests/testdata/dsa_privkey.pem |  20 +++++++
+ gjwt/tests/testdata/rsa_privkey.der | Bin 0 -> 1193 bytes
+ 5 files changed, 113 insertions(+), 12 deletions(-)
+ create mode 100644 gjwt/tests/testdata/dsa_privkey.pem
+ create mode 100644 gjwt/tests/testdata/rsa_privkey.der
+
+diff --git a/gjwt/jwk.py b/gjwt/jwk.py
+index 098ce53..044263b 100644
+--- a/gjwt/jwk.py
++++ b/gjwt/jwk.py
+@@ -26,8 +26,6 @@ from typing import (
+     Union,
+     Optional
+ )
+-from functools import wraps
+-
+ from cryptography.exceptions import InvalidSignature
+ from cryptography.hazmat.backends import default_backend
+ from cryptography.hazmat.primitives.asymmetric import padding
+@@ -279,21 +277,20 @@ def jwk_from_dict(dct: Mapping[str, Any]) -> AbstractJWKBase:
+ 
+ 
+ def jwk_from_bytes_argument_conversion(func):
+-    @wraps(func)
++    if 'private' in func.__name__:
++        kind = 'private'
++    elif 'public' in func.__name__:
++        kind = 'public'
++    else:
++        raise Exception("the wrapped function must have either public"
++                        " or private in it's name")
++
+     def wrapper(content, **kwargs):
+         # content is the only positional argument allowed
+         # the function you wrap must use kwargs-only arguments PEP3102
+         if not isinstance(content, bytes):  # pragma: no cover
+             raise TypeError(
+                 'content must be bytes, it is {}'.format(type(content)))
+-
+-        if 'private' in func.__name__:
+-            kind = 'private'
+-        elif 'public' in func.__name__:
+-            kind = 'public'
+-        else:
+-            raise Exception("the wrapped function must have either public"
+-                            " or private in it's name")
+         load_function = f'serializer_load_function_{kind}'
+         if kwargs.get(load_function) is None:
+             raise Exception(f'{load_function} is not Optional')
+diff --git a/gjwt/tests/test_jwa.py b/gjwt/tests/test_jwa.py
+index 4cd8648..b3514b9 100644
+--- a/gjwt/tests/test_jwa.py
++++ b/gjwt/tests/test_jwa.py
+@@ -65,4 +65,5 @@ class HS256Test(TestCase):
+         self.assertEqual(signature, self.signature)
+ 
+     def test_verify(self):
+-        self.assertTrue(HS256.verify(self.message, self.key, self.signature))
++        assert HS256.verify(self.message, self.key, self.signature)
++        assert not HS256.verify(self.message + b'asd', self.key, self.signature)
+diff --git a/gjwt/tests/test_jwk.py b/gjwt/tests/test_jwk.py
+index 85ad0da..f2e81fa 100644
+--- a/gjwt/tests/test_jwk.py
++++ b/gjwt/tests/test_jwk.py
+@@ -28,8 +28,16 @@ from jwt.jwk import (
+ 
+     jwk_from_dict,
+     jwk_from_pem,
++    jwk_from_der,
++    jwk_from_bytes,
++    jwk_from_bytes_argument_conversion,
++
++    MalformedJWKError,
++    UnsupportedKeyTypeError,
+ )
+ 
++from pytest import raises
++
+ from .helper import load_testdata
+ 
+ 
+@@ -48,6 +56,52 @@ def test_jwk_from_dict():
+     assert isinstance(jwk_priv.keyobj, RSAPrivateKey)
+ 
+ 
++def test_jwk_from_dict_malformed_kty():
++    json_priv = json.loads(load_testdata('rsa_privkey.json', 'r'))
++    del json_priv['kty']
++    with raises(MalformedJWKError):
++        jwk_from_dict(json_priv)
++
++
++def test_jwk_from_dict_unsupported_kty():
++    json_priv = json.loads(load_testdata('rsa_privkey.json', 'r'))
++    json_priv['kty'] = 'unknown'
++    with raises(UnsupportedKeyTypeError):
++        jwk_from_dict(json_priv)
++
++
++def test_jwk_from_bytes_argument_conversion_confusing_name():
++    with raises(Exception) as ex:
++        @jwk_from_bytes_argument_conversion
++        def confusing(_content, *, _password=None, _backend=None):  # pylint: disable=unused-variable
++            pass
++    assert ("the wrapped function must have either public"
++            " or private in it's name" in str(ex))
++
++
++def test_jwk_from_bytes_without_load_function():
++    with raises(Exception) as ex:
++        jwk_from_bytes(b'')
++    assert 'is not Optional' in str(ex)
++
++
++def test_jwk_from_unsupported_pem():
++    with raises(UnsupportedKeyTypeError):
++        jwk_from_pem(load_testdata('dsa_privkey.pem'))
++
++
++def test_jwk_from_pem_not_deserializable():
++    with raises(UnsupportedKeyTypeError):
++        jwk_from_pem(b'')
++
++
++def test_jwk_from_der():
++    jwk_priv = jwk_from_der(load_testdata('rsa_privkey.der'))
++
++    assert isinstance(jwk_priv, RSAJWK)
++    assert isinstance(jwk_priv.keyobj, RSAPrivateKey)
++
++
+ class OctetJWKTest(unittest.TestCase):
+ 
+     def setUp(self):
+@@ -67,6 +121,12 @@ class OctetJWKTest(unittest.TestCase):
+     def test_to_dict(self):
+         self.assertEqual(self.inst.to_dict(public_only=False), self.key_json)
+ 
++    def test_from_dict_missing_k(self):
++        key_json = self.key_json.copy()
++        del key_json['k']
++        with raises(MalformedJWKError):
++            OctetJWK.from_dict(key_json)
++
+ 
+ class RSAJWKTest(unittest.TestCase):
+ 
+@@ -121,3 +181,26 @@ class RSAJWKTest(unittest.TestCase):
+ 
+         self.assertEqual(
+             inst.to_dict(public_only=False), self.privkey_full_json)
++
++    def test_from_dict_priv_oth_unsupported(self):
++        with raises(UnsupportedKeyTypeError):
++            _json = self.privkey_full_json.copy()
++            _json['oth'] = 'unsupported'
++            RSAJWK.from_dict(_json)
++
++    def test_from_dict_priv_malformed_e(self):
++        with raises(MalformedJWKError):
++            _json = self.privkey_full_json.copy()
++            del _json['e']
++            RSAJWK.from_dict(_json)
++
++    def test_from_dict_priv_malformed_q(self):
++        with raises(MalformedJWKError):
++            _json = self.privkey_full_json.copy()
++            del _json['q']
++            RSAJWK.from_dict(_json)
++
++    def test_verify_invalid(self):
++        from cryptography.hazmat.primitives.hashes import SHA256
++        inst = RSAJWK.from_dict(self.privkey_full_json)
++        assert not inst.verify(b'hello everyone', b'', hash_fun=SHA256)
+diff --git a/gjwt/tests/testdata/dsa_privkey.pem b/gjwt/tests/testdata/dsa_privkey.pem
+new file mode 100644
+index 0000000..edd3e3e
+--- /dev/null
++++ b/gjwt/tests/testdata/dsa_privkey.pem
+@@ -0,0 +1,20 @@
++-----BEGIN DSA PRIVATE KEY-----
++MIIDVgIBAAKCAQEA5dnCTyloWER4Lz7Si1fKbFd9zZLBj9MAJ3sRC52oM7Y5uApU
++yBM72VXOoJtbruxuyMUGBEHeYJwJ18hBBGGCy3c2TAYyJ23QJa4MwKEN07W26gpw
++rodCMVRODSWVfSIqKOh6sEUOPqDko7kTOiToO8tGaEWqu+WEGo5Io26Lu6/vBbQT
++/CLdXNK3Jki9A2ZRpgsmCcm0f877y7/PBx7t0EDFvgcLrgr/Cied6ZlgA1WqcyDl
++Y3PG7ov8FiwQbLzmI4iPtlDUmHlEDja5WnGL+Ze8mMNzhWKR29ysIm/q2TvUE5aI
++Zx+dH8ql9YuqggGsTiapy8aS4SUVD6FFy/j5DQIhAMpVj3f1loMLpHNmNxsqiqPw
++sob12MqK33cR6TOIpjsxAoIBAGVWdxB0jkscWpN0hCG7WELKcrIG6UFBVGstYP+c
++hRE8v3eiysEuqH8J4F+D2j82yf+2NprG/uDfbFm5nX8VAYIkcj5QliP4v41J/dwU
++0wDUwIk2U+s3tzDsfvY9iaaVYF351ByiqzT25rE8kZaZ1/sFjkWap+9eI5ZwOTQT
++tnI+NuqcOtcdFsPoRT3V+0VjBublgqGyqKNLxNOW6mEnsLy+OC7KhTFTjjRAoO0Y
++1UNccUTDMmklUjwjroSUkexLPkdOWWbROg3aR1XQ89+hC2NXcqsAzXTFDNKggRQ6
++WIki0eKmZcCPVuQI5VaD8jPTF22vjuckZ2iu64pOZYkb3MkCggEBALGnGus/+MxW
++SJxiU1uC6otpeN2V8WIxASBQE85ygEJGU2v1yO0JWYl0zthCc6/Nc9GCXvzN0Y+j
++tNezYFBIxjaRrDP4KI/LyBjGc32C/gCDRjMytEu4hhOhL6Ja+D+RLvFyyUorHxn7
++7L1jI3CLb3QbI9TUktmAxtd/IbfIZudioYrsXu8ZEsIxW2rZ1pU2OME+JaFbv84+
++yoMloviK5LUA3Ycv0rLpUogNNd2KCTixGWu8L0Q/N4uG1Y1uYZRUy4OcOsEvZeT7
++p9a0us4wVPXVBm3RRMgbu7knCrIER5d69dwdZP/krbpEVGY5HcIzG4c/sNfrjbsU
++mEEwfAOxPY8CICP0GbrUokc/ymAD+mlc3BDtmXu+mjYyUlLnwe5ui1CO
++-----END DSA PRIVATE KEY-----
+diff --git a/gjwt/tests/testdata/rsa_privkey.der b/gjwt/tests/testdata/rsa_privkey.der
+new file mode 100644
+index 0000000000000000000000000000000000000000..fd462271022031a7c60194c6fd61cb7b50ede134
+GIT binary patch
+literal 1193
+zcmV;a1XlYnf&`=j0RRGm0RaHC&(U5pDeMc+u6FhQEy$V1czL-P_zTp!wAY>jQU(e1
+z7?VuYaM41bDHD=&P<QqOiL3)G*6{|bt!%*A)uyY;&05k{CQ;=}2#T-F84o2ikgzH#
+zK@U~&Ym?iZv&`J=>&I0X*Fq)UNi`HQlAIpKY2!Tm^qTnli^bp@e*I4+x<BQXSDGYw
+zNf#&AiA!oO4Tn+LBRvL%R`^&k4(@@OcxcUTM1INIj9Pmfza&5@NYMkF@7%5`UHJEE
+z$LYMquvzw%{1(gDobAK>5|ER4T6MHmgZlhIg!W{4G&LNodW8;icya;fB#9-S+J9xd
+zuZNQvjN5e;w%{<w2>4k70|5X50)hbmPWm55crC4u6D{wAPkamwFD2Y{KQzf^C=Y4I
+z_}G6A#qu5%2M#DXW8ckAz|*@jSd|g)X&jNa3NidR*lm0nxxuXz2GK$wSAXfG6c9EK
+zSU`f(N2bMI63?8A=KO3`Yo94NKwEX^IEvkdZup-3%1PoG_bbM&PNJmI*zm;<n?TT3
+zwOA9AA}TVK6BIbP5Ga*hp_XTm4pgm^&Qj4e4p{9(yq00HRc!6hV~ve;goy9n22TL*
+z0yoY{%*UEFxt70#P>(=;_qeC7sZMK}m}1{Fv;~gh8IMGutG}b*P8|FTK%MXiFgH8U
+z4`+BLnX$z@!B4OGl^Nh382`Zm0)c@5+B`zht|c03b*pBW6IODHtrV&}K=*2J6@p;j
+z%``B%ANQa>bm(2cFdXHe3OCEpSC}{6@}lSJNF8MYvPe@)&(Az+-+H1iwwOYXru!_a
+zEClFX&a^{1%KigC(up0R=3S+)`}-rpJn0nJ?7(E<2N7?rHIXKuSg_4kG?I1^0)c@5
+z)ETtWz;dcYCKiPaMm#1;6W=A}OH3;D8;2#9IeIdo<{KnK9~)e!UxHp-i6!ZaL5+Z_
+zvpfAhG1}I;Fin<#Je?KqO!9>{1-G9yiZ4s1C!-*0#4LNsoo_orXyZ!RBfw%RfTHQ`
+z2f7G2$0O0t)YCM%tN$Sa)}$V=$V~Og0)c@5uEhJT_zZThGc@F&eLM-)%<Xfxbw94z
+zydVL5xm8Agy8aL{bY*f*>p1xv#gh?%^W;xD7>*^h6||J3C@PDpcI~^c%J1gd*BkJX
+zB4eCQTbn|QeR3By3PXxco=A9>qiOTHkIj3*o(=m*4Y9Tu5ETNRZ~LM*Ur(3fa+9b*
+z0)c@5!9D_ynWJAB<Pp?+d8kLiYD9lTU(7GRO{-o-c5JOc@MC^3VPOuFx8o6#0jjqX
+zmrxTBb7+p7Vbk85m~yyMapyG}=i+u4;clSusLI-dvCUvLrZQPRA>cdzkBqjT3xT$7
+zzVNSXv;%yGE_tRYQs8q#Pd|;826a_9|K*Nx0)c=5ls8ET2cZnqui|G!&5m1qKa~Vm
+zc0$Mm))pa|Mi@ldU?K7g^^YD2+p1hr&1dq*c57IAX5dn)%!riKsm9W*n|A6zP{&5I
+z+^`k+ovG`?(DRa!^^@{9Sj3$gsRIEW!?eEgT{2fDjgoG<c@jL*pRn8vO>Hk>C;rrx
+HUF8@GL0dnC
+
+literal 0
+HcmV?d00001
+
+-- 
+2.25.1
+

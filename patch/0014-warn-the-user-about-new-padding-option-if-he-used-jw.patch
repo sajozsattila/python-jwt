@@ -1,0 +1,59 @@
+From ff01f8107faeba2c4be52e5ae977e4cf5a544354 Mon Sep 17 00:00:00 2001
+From: Castix <vincenzo.castiglia@axant.it>
+Date: Thu, 17 Dec 2020 17:41:09 +0100
+Subject: [PATCH 14/16] warn the user about new padding option, if he used jwk
+ directly instead of using jwa
+
+---
+ gjwt/jwk.py            | 7 ++++++-
+ gjwt/tests/test_jwk.py | 5 +++--
+ 2 files changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/gjwt/jwk.py b/gjwt/jwk.py
+index 2672329..aec9fc0 100644
+--- a/gjwt/jwk.py
++++ b/gjwt/jwk.py
+@@ -15,6 +15,7 @@
+ # limitations under the License.
+ 
+ import hmac
++from warnings import warn
+ from abc import (
+     ABC,
+     abstractmethod,
+@@ -157,7 +158,11 @@ class RSAJWK(AbstractJWKBase):
+         return options['hash_fun']
+ 
+     def _get_padding(self, options) -> padding.AsymmetricPadding:
+-        return options['padding']
++        try:
++            return options['padding']
++        except KeyError:
++            warn('you should not use RSAJWK.verify/sign without jwa intermiediary, used legacy padding')
++            return padding.PKCS1v15()
+ 
+     def sign(self, message: bytes, **options) -> bytes:
+         hash_fun = self._get_hash_fun(options)
+diff --git a/gjwt/tests/test_jwk.py b/gjwt/tests/test_jwk.py
+index e072d8c..237cbf9 100644
+--- a/gjwt/tests/test_jwk.py
++++ b/gjwt/tests/test_jwk.py
+@@ -35,7 +35,7 @@ from jwt.jwk import (
+     UnsupportedKeyTypeError,
+ )
+ 
+-from pytest import raises
++from pytest import raises, warns
+ 
+ from .helper import load_testdata
+ 
+@@ -196,4 +196,5 @@ class RSAJWKTest(unittest.TestCase):
+     def test_verify_invalid(self):
+         from cryptography.hazmat.primitives.hashes import SHA256
+         inst = RSAJWK.from_dict(self.privkey_full_json)
+-        assert not inst.verify(b'hello everyone', b'', hash_fun=SHA256)
++        with warns(UserWarning):
++            assert not inst.verify(b'hello everyone', b'', hash_fun=SHA256)
+-- 
+2.25.1
+

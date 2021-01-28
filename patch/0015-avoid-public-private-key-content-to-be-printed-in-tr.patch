@@ -1,0 +1,27 @@
+From 23303cfeddeec872929a31e68757fe3244d1cec6 Mon Sep 17 00:00:00 2001
+From: Kohei YOSHIDA <kohei.yoshida@gehirn.co.jp>
+Date: Tue, 19 Jan 2021 21:57:22 +0900
+Subject: [PATCH 15/16] avoid public/private key content to be printed in
+ tracebacks
+
+---
+ gjwt/jwk.py | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/gjwt/jwk.py b/gjwt/jwk.py
+index aec9fc0..bc912c7 100644
+--- a/gjwt/jwk.py
++++ b/gjwt/jwk.py
+@@ -296,9 +296,6 @@ def jwk_from_bytes_argument_conversion(func):
+ 
+     @wraps(func)
+     def wrapper(content, loader, **kwargs):
+-        if not isinstance(content, bytes):
+-            raise TypeError(
+-                'content must be bytes, it is {}'.format(type(content)))
+         # now convert it to a Callable if it's a string
+         if isinstance(loader, str):
+             loader = getattr(serialization_module, loader)
+-- 
+2.25.1
+
