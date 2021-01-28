@@ -10,7 +10,7 @@ python-(g)jwt
 
 *python-jwt* is a JSON Web Token (JWT) implementation in Python developed by `Gehirn Inc`_.
 
-This repository is a folk of the [original `Gehirn Inc`](https://github.com/GehirnInc/python-jwt) code. The `Gehirn Inc` code has an unresolved conflict with the [PyJWT](https://github.com/jpadilla/pyjwt) package.  Both of them installed in the `dist-packages/jwt` directory, so they overwrite itself.  I have raised a ticket with the `Gehirn Inc`, but they have not intension to solve this problem.  So I created this repository to solve it. For this, I am renaming the `Gehirn Inc` solution to `gjwt`. 
+This repository is a folk of the [original `Gehirn Inc`](https://github.com/GehirnInc/python-jwt) code. The `Gehirn Inc` code has an unresolved conflict with the [PyJWT](https://github.com/jpadilla/pyjwt) package.  Both of them installed in the `dist-packages/jwt` directory, so they overwrite each other.  I have raised a ticket with the `Gehirn Inc`, but they have not intension to solve this problem.  So I created this repository to solve it. For this, I am renaming the `Gehirn Inc` solution to `gjwt`. 
 I am trying to follow the `Gehirn Inc` as near as possible, so patching this repository regularly. 
 
 Examples
